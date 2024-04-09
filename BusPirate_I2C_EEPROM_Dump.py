@@ -99,35 +99,41 @@ busPirate.configure(power = True, pullup = args.enablePullups)
 
 # Send a start bit
 busPirate.start()
-# Initialise the output file and a progress bar for the write operation
-with open(args.outputFile, "wb") as dumpFile:
-    with tqdm(total = totalBytes, unit = " bytes") as readProgress:
-        # Start at address 0
-        byteAddress = 0
-        
-        # Loop through every available byte in the EEPROM and dump it to a file
-        while (byteAddress < totalBytes):
-            # Set the EEPROM address for a sequential read.
-            busPirate.transfer([WRITE_ADDRESS, ((byteAddress >> 8) & 0xFF), (byteAddress & 0xFF) ])
-
-            # Read the max amount of data, or the remaining data (whichever is smaller)
-            rxCount = min(args.bytesPerPage, (totalBytes - byteAddress))
-
-            # The only data to be written is the read address of the EEPROM
-            txData = [READ_ADDRESS]
-            # Write and then read the specified number of bytes
-            rxData = busPirate.write_then_read(len(txData), rxCount, txData)
-
-            # If the read was successful, write the contents to a file
-            dumpFile.write(rxData)
-
-            # Calculate the next address to read from
-            byteAddress += rxCount
+try:
+    # Initialise the output file and a progress bar for the write operation
+    with open(args.outputFile, "wb") as dumpFile:
+        with tqdm(total = totalBytes, unit = " bytes") as readProgress:
+            # Start at address 0
+            byteAddress = 0
             
-            # Update progress bar
-            readProgress.update(rxCount)
-# Send a stop bit
-busPirate.stop()
+            # Loop through every available byte in the EEPROM and dump it to a file
+            while (byteAddress < totalBytes):
+                # Set the EEPROM address for a sequential read.
+                busPirate.transfer([WRITE_ADDRESS, ((byteAddress >> 8) & 0xFF), (byteAddress & 0xFF) ])
+
+                # Read the max amount of data, or the remaining data (whichever is smaller)
+                rxCount = min(args.bytesPerPage, (totalBytes - byteAddress))
+
+                # The only data to be written is the read address of the EEPROM
+                txData = [READ_ADDRESS]
+                # Write and then read the specified number of bytes
+                rxData = busPirate.write_then_read(len(txData), rxCount, txData)
+
+                # If the read was successful, write the contents to a file
+                dumpFile.write(rxData)
+
+                # Calculate the next address to read from
+                byteAddress += rxCount
+                
+                # Update progress bar
+                readProgress.update(rxCount)
+    # Send a stop bit
+    busPirate.stop()
+except IOError as e:
+    # Catch IOError so we can reset the BusPirate
+    print(f'{OutputColours.ERROR}[ERR] BusPirate encountered an error')
+    busPirate.hw_reset()
+    raise e
 
 # Reset the BusPirate to disable all outputs and reset it to "HiZ" mode. Should also free up the COM port.
 busPirate.hw_reset()
